@@ -29,6 +29,7 @@ class GUI:
 
         self.param_frame = tk.Frame(self.options_frame)
         self.param_frame.pack(pady=10, fill=tk.X)
+        
 
     def add_sphere_dialog(self):
         self.clear_param_frame()
@@ -59,31 +60,34 @@ class GUI:
     def add_portal_dialog(self):
         self.clear_param_frame()
         tk.Label(self.param_frame, text="Portal A Position (x, y, z):").pack()
-        portal_a_entry = tk.Entry(self.param_frame)
-        portal_a_entry.pack()
+        self.portal_a_entry = tk.Entry(self.param_frame)
+        self.portal_a_entry.pack()
         tk.Label(self.param_frame, text="Portal B Position (x, y, z):").pack()
-        portal_b_entry = tk.Entry(self.param_frame)
-        portal_b_entry.pack()
+        self.portal_b_entry = tk.Entry(self.param_frame)
+        self.portal_b_entry.pack()
         tk.Label(self.param_frame, text="Portal A Direction (x, y, z):").pack()
-        direction_a_entry = tk.Entry(self.param_frame)
-        direction_a_entry.pack()
+        self.direction_a_entry = tk.Entry(self.param_frame)
+        self.direction_a_entry.pack()
         tk.Label(self.param_frame, text="Portal B Direction (x, y, z):").pack()
-        direction_b_entry = tk.Entry(self.param_frame)
-        direction_b_entry.pack()
+        self.direction_b_entry = tk.Entry(self.param_frame)
+        self.direction_b_entry.pack()
+        tk.Button(self.param_frame, text="Add Portal", command=self.add_portal).pack(pady=5)
 
-        def add_portal():
-            try:
-                pos_a = np.array(eval(portal_a_entry.get()))
-                pos_b = np.array(eval(portal_b_entry.get()))
-                dir_a = np.array(eval(direction_a_entry.get()))
-                dir_b = np.array(eval(direction_b_entry.get()))
-                portal = Portal(pos_a, pos_b, dir_a, dir_b)
-                self.scene.add_portal(portal)
-                messagebox.showinfo("Success", "Portal added successfully!")
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to add portal: {e}")
 
-        tk.Button(self.param_frame, text="Add Portal", command=add_portal).pack(pady=5)
+    def add_portal(self):
+        try:
+            pos_a = np.array(eval(self.portal_a_entry.get()))
+            pos_b = np.array(eval(self.portal_b_entry.get()))
+            dir_a = np.array(eval(self.direction_a_entry.get()))
+            dir_b = np.array(eval(self.direction_b_entry.get()))
+            portal = Portal(pos_a, pos_b, dir_a, dir_b)
+            self.scene.add_portal(portal)
+            messagebox.showinfo("Success", "Portal added successfully!")
+            self.scene.render(self.canvas, self.canvas_width, self.canvas_height)
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to add portal: {e}")
+
 
     def clear_param_frame(self):
         for widget in self.param_frame.winfo_children():
