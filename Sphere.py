@@ -14,8 +14,22 @@ class Sphere:
         b = 2.0 * np.dot(oc, ray.direction)
         c = np.dot(oc, oc) - self.radius ** 2
         discriminant = b ** 2 - 4 * a * c
+    
         if discriminant < 0:
-            return None, None
+            return None, None  # No intersection
+    
+        # Compute the two intersection points
         t1 = (-b - np.sqrt(discriminant)) / (2 * a)
         t2 = (-b + np.sqrt(discriminant)) / (2 * a)
-        return t1, t2
+    
+        # Step 1: Reject intersections behind the ray
+        if t1 < 0 and t2 < 0:
+            return None, None  # The sphere is behind the ray
+    
+        # Step 2: Ensure the correct hit is returned
+        if t1 < 0:  # If t1 is negative, use t2 (entering the sphere)
+            return t2, None
+        if t2 < 0:  # If t2 is negative, use t1 (exiting the sphere)
+            return t1, None
+    
+        return t1, t2  # Valid intersection

@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from Scene import Scene
 from Portal import Portal
 from Sphere import Sphere
+from Light import Light
 
 class GUI:
     def __init__(self, root):
@@ -26,9 +27,14 @@ class GUI:
         tk.Button(self.options_frame, text="Add Sphere", command=self.add_sphere_dialog).pack(pady=5)
         tk.Button(self.options_frame, text="Add Portal", command=self.add_portal_dialog).pack(pady=5)
         tk.Button(self.options_frame, text="Render Full Scene", command=self.render_full_scene).pack(pady=20)
+        tk.Button(self.options_frame, text="Add Light", command=self.add_light_dialog).pack(pady=5)
+        tk.Button(self.options_frame, text="Load Demo Scene", command=self.demo_scene).pack(pady=5)
+
 
         self.param_frame = tk.Frame(self.options_frame)
         self.param_frame.pack(pady=10, fill=tk.X)
+
+        self.draw_axes()
         
 
     def add_sphere_dialog(self):
@@ -84,10 +90,56 @@ class GUI:
             self.scene.add_portal(portal)
             messagebox.showinfo("Success", "Portal added successfully!")
             self.scene.render(self.canvas, self.canvas_width, self.canvas_height)
+            self.draw_axes()
 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to add portal: {e}")
 
+    def add_light_dialog(self):
+        self.clear_param_frame()
+
+        tk.Label(self.param_frame, text="Light Parameters").pack()
+        tk.Label(self.param_frame, text="X:").pack()
+        self.light_x = tk.Entry(self.param_frame)
+        self.light_x.pack()
+
+        tk.Label(self.param_frame, text="Y:").pack()
+        self.light_y = tk.Entry(self.param_frame)
+        self.light_y.pack()
+
+        tk.Label(self.param_frame, text="Z:").pack()
+        self.light_z = tk.Entry(self.param_frame)
+        self.light_z.pack()
+
+        tk.Label(self.param_frame, text="Intensity:").pack()
+        self.light_intensity = tk.Entry(self.param_frame)
+        self.light_intensity.pack()
+
+        tk.Label(self.param_frame, text="Color (R,G,B):").pack()
+        self.light_color = tk.Entry(self.param_frame)
+        self.light_color.pack()
+
+        tk.Button(self.param_frame, text="Add Light", command=self.add_light).pack(pady=10)
+
+
+    def add_light(self):
+        try:
+            x = float(self.light_x.get())
+            y = float(self.light_y.get())
+            z = float(self.light_z.get())
+            intensity = float(self.light_intensity.get())
+            color = [float(c) for c in self.light_color.get().split(",")]
+
+            if not (0 <= color[0] <= 1 and 0 <= color[1] <= 1 and 0 <= color[2] <= 1):
+                raise ValueError("Color values must be between 0 and 1")
+
+            light = Light(position=[x, y, z], intensity=intensity, color=color)
+            self.scene.add_light(light)
+            self.scene.render(self.canvas, self.canvas_width, self.canvas_height)
+
+            messagebox.showinfo("Info", "Light added successfully!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Invalid input: {e}")
 
     def clear_param_frame(self):
         for widget in self.param_frame.winfo_children():
@@ -104,9 +156,28 @@ class GUI:
                 raise ValueError("Color values must be between 0 and 1")
             self.scene.add_object(Sphere([x, y, z], radius, color))
             self.scene.render(self.canvas, self.canvas_width, self.canvas_height)
+            self.draw_axes()
             messagebox.showinfo("Info", "Sphere added successfully!")
         except Exception as e:
             messagebox.showerror("Error", f"Invalid input: {e}")
+
+    def draw_axes(self):
+        """Rysowanie osi współrzędnych w prawym dolnym rogu"""
+        scale = 30  # Długość strzałek
+        margin = 50  # Odstęp od prawego dolnego rogu
+
+        origin_x = self.canvas_width - margin
+        origin_y = self.canvas_height - margin
+
+        # Osie X, Y, Z
+        self.canvas.create_line(origin_x, origin_y, origin_x + scale, origin_y, fill="red", arrow="last")  # X (czerwony)
+        self.canvas.create_line(origin_x, origin_y, origin_x, origin_y - scale, fill="green", arrow="last")  # Y (zielony)
+        self.canvas.create_line(origin_x, origin_y, origin_x - scale, origin_y + scale, fill="blue", arrow="last")  # Z (niebieski)
+
+        # Podpisy osi
+        self.canvas.create_text(origin_x + scale + 10, origin_y, text="X", fill="red", font=("Arial", 10, "bold"))
+        self.canvas.create_text(origin_x, origin_y - scale - 10, text="Y", fill="green", font=("Arial", 10, "bold"))
+        self.canvas.create_text(origin_x - scale - 10, origin_y + scale + 5, text="Z", fill="blue", font=("Arial", 10, "bold"))    
 
     def render_full_scene(self):
         """Pełne renderowanie sceny"""
@@ -117,3 +188,35 @@ class GUI:
         plt.imshow(image)
         plt.axis("off")
         plt.show()
+
+    def demo_scene(self):
+        """Creates a scene where the sphere is backlit and appears as a silhouette."""
+        self.scene = Scene()  # Reset the scene
+
+        # Add the sphere in the center
+        sphere = Sphere(center=np.array([0, 0, 0]), radius=0.5, color=np.array([1, 0, 0]))  # Red sphere
+        self.scene.add_object(sphere)
+
+                # Add the sphere in the center
+        sphere = Sphere(center=np.array([0, 0, 10]), radius=3, color=np.array([0, 0, 1]))  # Red sphere
+        self.scene.add_object(sphere)
+
+        # Add a light source behind the sphere
+        light = Light(position=np.array([0, 0, -5]), intensity=10.0, color=np.array([1, 1, 1]))  # White light
+        self.scene.add_light(light)
+
+           # Portal Entry (A): Between the camera and the sphere, facing the camera
+        portal_entry_position = np.array([0, 0, -2])
+        portal_entry_direction = np.array([0, 0, -1])  # Facing the camera
+    
+        # Portal Exit (B): Behind the sphere, facing toward the sphere
+        portal_exit_position = np.array([0, 0, 5])
+        portal_exit_direction = np.array([0, 0, 1])  # Facing the sphere
+    
+        # Create and add the portal
+        portal = Portal(portal_entry_position, portal_exit_position, portal_entry_direction, portal_exit_direction)
+        self.scene.add_portal(portal)
+
+        # Render the scene
+        self.scene.render(self.canvas, self.canvas_width, self.canvas_height)
+        self.draw_axes()  # Draw coordinate axes

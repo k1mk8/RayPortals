@@ -3,6 +3,7 @@ from Ray import Ray
 from Sphere import Sphere
 from Portal import Portal
 
+
 class Scene:
     def __init__(self):
         self.objects = []
@@ -15,6 +16,9 @@ class Scene:
 
     def add_portal(self, portal):
         self.portals.append(portal)
+
+    def add_light(self, light):
+        self.lights.append(light)
 
     def render(self, canvas, width, height):
         canvas.delete("all")
@@ -52,7 +56,6 @@ class Scene:
                 screen_y_b = int(offset_y - y_b * scale)
                 screen_r = 10
 
-                # Dodalem to
                 canvas.create_oval(
                     screen_x_a - screen_r, screen_y_a - screen_r,
                     screen_x_a + screen_r, screen_y_a + screen_r,
@@ -104,25 +107,54 @@ class Scene:
         return image
 
     def trace_ray(self, ray, depth=6):
+        """Trace a ray through the scene, handling both objects and finite-sized portals."""
+
         if depth <= 0:
             return np.array([0, 0, 0])  # Black for max recursion
 
-        hit, t_min, obj = self.find_closest_intersection(ray)
-        if hit:
-            hit_point = ray.origin + t_min * ray.direction
-            normal = (hit_point - obj.center) / np.linalg.norm(hit_point - obj.center)
-            base_color = self.shade(hit_point, normal, obj)
-            depth_color = base_color * (1 - 0.1 * (6 - depth))  # Fade color by depth
-            return np.clip(depth_color, 0, 1)
+        closest_t = float("inf")
+        closest_obj = None
+        closest_portal = None
+        hit = False
 
+        # Check for intersections with objects
+        obj_hit, obj_t, obj = self.find_closest_intersection(ray)
+        if obj_hit and obj_t < closest_t:
+            closest_t = obj_t
+            closest_obj = obj
+            hit = True
+            if(depth <6):
+                print(f"{ray.origin} {ray.direction}")
+
+        # if(depth<6):
+        #     print(f"{depth}, {obj_hit}, {ray.origin}, {ray.direction}")
+
+        # Check for intersections with portals (with finite size)
         for portal in self.portals:
-            new_ray = portal.transport_ray(ray)
-            if new_ray:
-                return self.trace_ray(new_ray, depth - 1)
+            portal_t = self.intersect_portal(ray, portal)
+            if portal_t is not None and portal_t < closest_t:
+                closest_t = portal_t
+                closest_portal = portal
+                closest_obj = None  # Override object if portal is closer
+                hit = True
 
-        return np.array([1, 1, 1])  # White background
+        if hit:
+            hit_point = ray.origin + closest_t * ray.direction
 
+            # If a portal was hit first, transport the ray
+            if closest_portal:
+                new_ray = closest_portal.transport_ray(ray)
+                if new_ray:
+                    return self.trace_ray(new_ray, depth - 1)
 
+            # Otherwise, shade the object normally
+            if closest_obj:
+                normal = (hit_point - closest_obj.center) / np.linalg.norm(hit_point - closest_obj.center)
+                color = self.shade(hit_point, normal, closest_obj)
+                return np.clip(color, 0, 1)
+
+        return np.array([0, 0, 0])  # Black background if nothing was hit
+    
     def find_closest_intersection(self, ray):
         closest_t = float("inf")
         closest_obj = None
@@ -142,11 +174,65 @@ class Scene:
 
         return hit, closest_t, closest_obj
 
+    def intersect_portal(self, ray, portal, radius=0.1):
+        """Find the intersection distance between a ray and a finite-sized portal."""
+        portal_position = portal.position_a  # Entry portal position
+        portal_normal = portal.direction_a   # Entry portal normal direction
+
+        # Step 1: Check if the ray intersects the portal plane
+        denom = np.dot(ray.direction, portal_normal)
+        if abs(denom) < 1e-6:  # Ray is parallel to portal plane
+            return None
+
+        t = np.dot(portal_position - ray.origin, portal_normal) / denom
+        if t < 0:
+            return None  # The portal is behind the ray
+
+        # Step 2: Check if the hit point is inside the portal boundary
+        hit_point = ray.origin + t * ray.direction
+        distance_to_center = np.linalg.norm(hit_point - portal_position)
+
+        if distance_to_center > radius:  # Portal is a circle with given radius
+            return None  # Ray hit the plane, but outside the portal
+
+        return t  # Valid intersection with portal
+
     def shade(self, point, normal, obj):
-        light_dir = np.array([1, 1, -1])
-        light_dir = light_dir / np.linalg.norm(light_dir)
-        intensity = max(np.dot(normal, light_dir), 0)
-        return intensity * obj.color
+        """Calculate the color at a point based on lights."""
+        total_color = np.zeros(3)
+
+        for light in self.lights:
+            light_dir = light.position - point
+            distance = np.linalg.norm(light_dir)
+            light_dir = light_dir / distance
+
+            shadow_ray = Ray(point + normal * 0.01, light_dir)  # Increased offset
+            shadow_hit, _, _ = self.find_closest_intersection(shadow_ray)
+
+            shadow_hit = False  # Manual override for debugging
+
+            if not shadow_hit:
+                dot_product = max(np.dot(normal, light_dir), 0)
+                attenuation = 1 / (distance + 1)  # Modified attenuation
+                intensity = dot_product * light.intensity * attenuation
+                total_color += intensity * obj.color * light.color
+
+            # Debugging print
+            print(f"\n=== SHADING DEBUG ==="
+                  f"\nHit Point: {point}"
+                  f"\nNormal: {normal}"
+                  f"\nObject Color: {obj.color}"
+                  f"\nLight Position: {light.position}"
+                  f"\nLight Direction: {light_dir}"
+                  f"\nDistance to Light: {distance}"
+                  f"\nDot Product (Angle Effect): {dot_product}"
+                  f"\nAttenuation Factor: {attenuation}"
+                  f"\nShadow Hit: {shadow_hit}"
+                  f"\nFinal Intensity: {intensity}"
+                  f"\nAccumulated Color: {total_color}"
+                  f"\n=====================")
+
+        return np.clip(total_color, 0, 1)
 
     @staticmethod
     def rgb_to_hex(rgb):
