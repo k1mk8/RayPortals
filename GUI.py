@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox, filedialog, ttk
 import numpy as np
 from Scene import Scene
 from Portal import Portal
@@ -40,6 +40,7 @@ class GUI:
         ttk.Button(self.options_frame, text="Add Light", command=self.add_light_dialog).pack(pady=5, fill=tk.X)
         ttk.Button(self.options_frame, text="Render Full Scene", command=self.render_full_scene).pack(pady=10, fill=tk.X)
         ttk.Button(self.options_frame, text="Load Demo Scene", command=self.demo_scene).pack(pady=5, fill=tk.X)
+        ttk.Button(self.options_frame, text="Load Scene From File", command=self.load_scene_from_file).pack(pady=5)
 
         self.param_frame = ttk.Frame(self.options_frame)
         self.param_frame.pack(pady=10, fill=tk.X)
@@ -201,6 +202,41 @@ class GUI:
         label = tk.Label(img_window, image=self.tk_image)
         label.pack()
 
+    def load_scene_from_file(self):
+        file_path = filedialog.askopenfilename(filetypes=[("Text Files", "*.txt")])
+        if not file_path:
+            return
+        
+        try:
+            with open(file_path, "r") as file:
+                self.scene = Scene()  
+                for line in file:
+                    parts = line.strip().split()
+                    if not parts:
+                        continue
+                    obj_type = parts[0].lower()
+                    
+                    if obj_type == "sphere":
+                        x, y, z, radius = map(float, parts[1:5])
+                        color = list(map(float, parts[5:8]))
+                        self.scene.add_object(Sphere([x, y, z], radius, color))
+                    elif obj_type == "light":
+                        x, y, z, intensity = map(float, parts[1:5])
+                        color = list(map(float, parts[5:8]))
+                        self.scene.add_light(Light([x, y, z], intensity, color))
+                    elif obj_type == "portal":
+                        pos_a = np.array(list(map(float, parts[1:4])))
+                        pos_b = np.array(list(map(float, parts[4:7])))
+                        dir_a = np.array(list(map(float, parts[7:10])))
+                        dir_b = np.array(list(map(float, parts[10:13])))
+                        radius =   float(parts[13])
+                        self.scene.add_portal(Portal(pos_a, pos_b, dir_a, dir_b, radius))
+                
+                self.scene.render_simplified(self.canvas, self.canvas_width, self.canvas_height)
+                self.draw_axes()
+                print("loaded scene successfully!")
+        except Exception as e:
+            print("error")
     def demo_scene(self):
         """Creates an advanced demo scene showcasing portals with multiple lights."""
         self.scene = Scene()
