@@ -3,6 +3,7 @@ from Ray import Ray
 from Sphere import Sphere
 from Portal import Portal
 
+
 class Scene:
     def __init__(self):
         self.objects = []
@@ -16,9 +17,12 @@ class Scene:
     def add_portal(self, portal):
         self.portals.append(portal)
 
-    def render(self, canvas, width, height):
+    def add_light(self, light):
+        self.lights.append(light)
+
+    def render_simplified(self, canvas, width, height):
         canvas.delete("all")
-        scale = 100
+        scale = 50
         offset_x = width // 2
         offset_y = height // 2
 
@@ -27,6 +31,7 @@ class Scene:
                 x, y, z = obj.center
                 r = obj.radius
                 color = self.rgb_to_hex(obj.color)
+                scale = 50*((0.85)**z)
 
                 screen_x = int(offset_x + x * scale)
                 screen_y = int(offset_y - y * scale)
@@ -46,13 +51,14 @@ class Scene:
                 dir_a = portal.direction_a
                 dir_b = portal.direction_b
 
+                scale = 50*((0.85)**z_a)
+
                 screen_x_a = int(offset_x + x_a * scale)
                 screen_y_a = int(offset_y - y_a * scale)
                 screen_x_b = int(offset_x + x_b * scale)
                 screen_y_b = int(offset_y - y_b * scale)
-                screen_r = 10
+                screen_r = portal.radius*scale
 
-                # Dodalem to
                 canvas.create_oval(
                     screen_x_a - screen_r, screen_y_a - screen_r,
                     screen_x_a + screen_r, screen_y_a + screen_r,
@@ -99,30 +105,10 @@ class Scene:
                 direction = lower_left_corner + u * horizontal + v * vertical - camera_origin
                 direction = direction / np.linalg.norm(direction)
                 ray = Ray(camera_origin, direction)
-                color = self.trace_ray(ray)
+                color = ray.trace(self)
                 image[height - j - 1, i, :] = np.clip(color, 0, 1)
         return image
-
-    def trace_ray(self, ray, depth=6):
-        if depth <= 0:
-            return np.array([0, 0, 0])  # Black for max recursion
-
-        hit, t_min, obj = self.find_closest_intersection(ray)
-        if hit:
-            hit_point = ray.origin + t_min * ray.direction
-            normal = (hit_point - obj.center) / np.linalg.norm(hit_point - obj.center)
-            base_color = self.shade(hit_point, normal, obj)
-            depth_color = base_color * (1 - 0.1 * (6 - depth))  # Fade color by depth
-            return np.clip(depth_color, 0, 1)
-
-        for portal in self.portals:
-            new_ray = portal.transport_ray(ray)
-            if new_ray:
-                return self.trace_ray(new_ray, depth - 1)
-
-        return np.array([1, 1, 1])  # White background
-
-
+    
     def find_closest_intersection(self, ray):
         closest_t = float("inf")
         closest_obj = None
@@ -143,10 +129,43 @@ class Scene:
         return hit, closest_t, closest_obj
 
     def shade(self, point, normal, obj):
-        light_dir = np.array([1, 1, -1])
-        light_dir = light_dir / np.linalg.norm(light_dir)
-        intensity = max(np.dot(normal, light_dir), 0)
-        return intensity * obj.color
+        """Calculate the color at a point based on lights."""
+        total_color = np.zeros(3)
+
+        for light in self.lights:
+            light_dir = light.position - point
+            distance = np.linalg.norm(light_dir)
+            light_dir = light_dir / distance
+
+            #Todo uncomment logic
+
+            # shadow_ray = Ray(point + normal * 0.01, light_dir)  # Increased offset
+            # shadow_hit, _, _ = self.find_closest_intersection(shadow_ray)
+
+            shadow_hit = False  # Manual override for debugging
+
+            if not shadow_hit:
+                dot_product = max(np.dot(normal, light_dir), 0)
+                attenuation = 1 / (distance + 1)  # Modified attenuation
+                intensity = dot_product * light.intensity * attenuation
+                total_color += intensity * obj.color * light.color
+
+            # Debugging print
+            # print(f"\n=== SHADING DEBUG ==="
+            #       f"\nHit Point: {point}"
+            #       f"\nNormal: {normal}"
+            #       f"\nObject Color: {obj.color}"
+            #       f"\nLight Position: {light.position}"
+            #       f"\nLight Direction: {light_dir}"
+            #       f"\nDistance to Light: {distance}"
+            #       f"\nDot Product (Angle Effect): {dot_product}"
+            #       f"\nAttenuation Factor: {attenuation}"
+            #       f"\nShadow Hit: {shadow_hit}"
+            #       f"\nFinal Intensity: {intensity}"
+            #       f"\nAccumulated Color: {total_color}"
+            #       f"\n=====================")
+
+        return np.clip(total_color, 0, 1)
 
     @staticmethod
     def rgb_to_hex(rgb):
