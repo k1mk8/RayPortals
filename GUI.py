@@ -6,6 +6,7 @@ from Portal import Portal
 from Sphere import Sphere
 from Light import Light
 from PIL import Image, ImageTk
+from SceneLoader import SceneLoader
 
 class GUI:
     def __init__(self, root):
@@ -33,6 +34,8 @@ class GUI:
         self.canvas_height = 500
         self.canvas = tk.Canvas(self.canvas_frame, bg="#1E1E1E", width=self.canvas_width, height=self.canvas_height, highlightthickness=0)
         self.canvas.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        self.loader = SceneLoader(self.scene, self.canvas, self.canvas_width, self.canvas_height)
 
         ttk.Label(self.options_frame, text="Add Object").pack(pady=5)
         ttk.Button(self.options_frame, text="Add Sphere", command=self.add_sphere_dialog).pack(pady=5, fill=tk.X)
@@ -187,15 +190,21 @@ class GUI:
         self.canvas.create_text(origin_x - scale - 10, origin_y + scale + 5, text="Z", fill="blue", font=("Arial", 10, "bold"))    
 
     def render_full_scene(self):
-        """Renderuje pełną scenę w lepszej jakości i wyświetla w osobnym oknie"""
+        """Renderuje pełną scenę w lepszej jakości, wyświetla w osobnym oknie i zapisuje do pliku"""
         
         width, height = 1920, 1080
         fov = np.pi / 4
         image = self.scene.render_full(width, height, fov)
         image = (image * 255).astype(np.uint8)
         pil_image = Image.fromarray(image)
-        
-        pil_image = pil_image.resize((1920, 1080), Image.Resampling.LANCZOS)  
+
+        # Zapisz obraz do pliku JPG
+        save_path = "/home/kkasper1/TRAK/trak-rayportals/rendered/rendered_scene_demo2.jpg"
+        pil_image.save(save_path, "JPEG")
+        print(f"Obraz zapisany jako {save_path}")
+
+        # Wyświetl w nowym oknie
+        pil_image = pil_image.resize((1920, 1080), Image.Resampling.LANCZOS)
         img_window = tk.Toplevel(self.root)
         img_window.title("Rendered Scene")
         self.tk_image = ImageTk.PhotoImage(pil_image)
@@ -203,84 +212,27 @@ class GUI:
         label.pack()
 
     def load_scene_from_file(self):
-        file_path = filedialog.askopenfilename(filetypes=[("Text Files", "*.txt")])
-        if not file_path:
-            return
-        
-        try:
-            with open(file_path, "r") as file:
-                self.scene = Scene()  
-                for line in file:
-                    parts = line.strip().split()
-                    if not parts:
-                        continue
-                    obj_type = parts[0].lower()
-                    
-                    if obj_type == "sphere":
-                        x, y, z, radius = map(float, parts[1:5])
-                        color = list(map(float, parts[5:8]))
-                        self.scene.add_object(Sphere([x, y, z], radius, color))
-                    elif obj_type == "light":
-                        x, y, z, intensity = map(float, parts[1:5])
-                        color = list(map(float, parts[5:8]))
-                        self.scene.add_light(Light([x, y, z], intensity, color))
-                    elif obj_type == "portal":
-                        pos_a = np.array(list(map(float, parts[1:4])))
-                        pos_b = np.array(list(map(float, parts[4:7])))
-                        dir_a = np.array(list(map(float, parts[7:10])))
-                        dir_b = np.array(list(map(float, parts[10:13])))
-                        radius =   float(parts[13])
-                        self.scene.add_portal(Portal(pos_a, pos_b, dir_a, dir_b, radius))
-                
-                self.scene.render_simplified(self.canvas, self.canvas_width, self.canvas_height)
-                self.draw_axes()
-                print("loaded scene successfully!")
-        except Exception as e:
-            print("error")
+        self.scene = self.loader.load_scene_from_file()
+
     def demo_scene(self):
-        """Creates an advanced demo scene showcasing portals with multiple lights."""
+        """Creates a demo scene showcasing the use of portals."""
         self.scene = Scene()
 
-        # Objects
-        sphere1 = Sphere(center=np.array([-3, 0, 3]), radius=1, color=np.array([1, 0, 0]))  # Red sphere
+        sphere1 = Sphere(center=np.array([-2, 0, 2]), radius=1, color=np.array([1, 0, 0]))
         self.scene.add_object(sphere1)
 
-        sphere2 = Sphere(center=np.array([2, -1, 7]), radius=1.5, color=np.array([0, 1, 0]))  # Green sphere
+        sphere2 = Sphere(center=np.array([2, 0, 8]), radius=2, color=np.array([0, 0, 1]))
         self.scene.add_object(sphere2)
 
-        sphere3 = Sphere(center=np.array([4, 2, 10]), radius=2, color=np.array([0, 0, 1]))  # Blue sphere
-        self.scene.add_object(sphere3)
+        light = Light(position=np.array([0, 5, -2]), intensity=15.0, color=np.array([1, 1, 1]))
+        self.scene.add_light(light)
 
-        # Lights
-        light1 = Light(position=np.array([-5, 5, -2]), intensity=15.0, color=np.array([1, 1, 1]))  # White light
-        self.scene.add_light(light1)
+        portal_entry_position = np.array([0, 0, 1])
+        portal_entry_direction = np.array([0, 0, 1])
+        portal_exit_position = np.array([0, 0, 6])
+        portal_exit_direction = np.array([0, 0, -1])
+        portal = Portal(portal_entry_position, portal_exit_position, portal_entry_direction, portal_exit_direction, 1.0)
+        self.scene.add_portal(portal)
 
-        light2 = Light(position=np.array([3, 5, 2]), intensity=4.0, color=np.array([1, 0.5, 0]))  # Warm light
-        self.scene.add_light(light2)
-
-        light3 = Light(position=np.array([0, -3, 5]), intensity=3.0, color=np.array([0, 0.5, 1]))  # Cool light
-        self.scene.add_light(light3)
-
-        # Portals
-        # portal_entry_position = np.array([1, 0, 5])
-        # portal_entry_direction = np.array([0, 0, 1])
-
-        # portal_exit_position = np.array([-4, 0, 6])
-        # portal_exit_direction = np.array([0, 0, -1])
-
-        # portal1 = Portal(portal_entry_position, portal_exit_position, portal_entry_direction, portal_exit_direction, 1)
-        # self.scene.add_portal(portal1)
-
-        portal_entry2_position = np.array([4, 1, 5])
-        portal_entry2_direction = np.array([-1, 0, 0])
-
-        portal_exit2_position = np.array([-4, 1, 5])
-        portal_exit2_direction = np.array([1, 0, 0])
-
-        portal2 = Portal(portal_entry2_position, portal_exit2_position, portal_entry2_direction, portal_exit2_direction, 1)
-        self.scene.add_portal(portal2)
-
-        # Render the scene
         self.scene.render_simplified(self.canvas, self.canvas_width, self.canvas_height)
         self.draw_axes()
-
