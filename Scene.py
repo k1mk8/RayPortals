@@ -98,15 +98,25 @@ class Scene:
             + np.array([0, 0, focal_length])
         )
 
-        for j in range(height):
-            for i in range(width):
-                u = i / (width - 1)
-                v = j / (height - 1)
-                direction = lower_left_corner + u * horizontal + v * vertical - camera_origin
-                direction = direction / np.linalg.norm(direction)
-                ray = Ray(camera_origin, direction)
-                color = ray.trace(self)
-                image[height - j - 1, i, :] = np.clip(color, 0, 1)
+        i, j = np.meshgrid(np.arange(width), np.arange(height), indexing="xy")
+        u = i / (width - 1)
+        v = j / (height - 1)
+
+        # Compute all ray directions at once
+        directions = lower_left_corner + u[..., None] * horizontal + v[..., None] * vertical - camera_origin
+        directions /= np.linalg.norm(directions, axis=-1, keepdims=True)
+
+        # Prepare arguments as a list of tuples
+        args_list = [(i, j, directions[j, i], camera_origin, self) for j in range(height) for i in range(width)]
+
+        # Use multiprocessing pool
+        with Pool() as pool:
+            results = pool.map(trace_pixel, args_list)
+
+        # Assign results back to the image
+        for i, j, color in results:
+            image[height - j - 1, i, :] = color
+
         return image
     
     def find_closest_intersection(self, ray):
