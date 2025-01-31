@@ -2,7 +2,13 @@ import numpy as np
 from Ray import Ray
 from Sphere import Sphere
 from Portal import Portal
+from multiprocessing import Pool
 
+def trace_pixel(args):
+    i, j, direction, camera_origin, scene = args
+    ray = Ray(camera_origin, direction)
+    color = np.clip(ray.trace(scene), 0, 1)
+    return i, j, color
 
 class Scene:
     def __init__(self):

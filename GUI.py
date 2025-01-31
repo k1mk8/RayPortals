@@ -199,7 +199,7 @@ class GUI:
         pil_image = Image.fromarray(image)
 
         # Zapisz obraz do pliku JPG
-        save_path = "/home/kkasper1/TRAK/trak-rayportals/rendered/rendered_scene_demo2.jpg"
+        save_path = "/home/kkasper1/TRAK/trak-rayportals/rendered/rendered_scene_demo6.jpg"
         pil_image.save(save_path, "JPEG")
         print(f"Obraz zapisany jako {save_path}")
 
